@@ -8,12 +8,14 @@ builder.Services.AddSwaggerGen();
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
+app.UseSwagger();
+app.UseSwaggerUI();
+
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    // You can leave other development-only settings here if you have any, 
+    // such as app.UseDeveloperExceptionPage();
 }
-
 app.UseHttpsRedirection();
 
 var summaries = new[]

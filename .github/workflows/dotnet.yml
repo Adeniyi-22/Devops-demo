@@ -19,10 +19,13 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
+            # Kill anything using Port 5000 so Docker can use it
+            sudo fuser -k 5000/tcp || true
+            # Clear out the old app directory
             sudo rm -rf /home/ubuntu/app
             mkdir -p /home/ubuntu/app
 
-      # STEP 2: COPY the source code to the now-empty folder
+      # STEP 2: COPY the fresh source code
       - name: Copy source to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -32,7 +35,7 @@ jobs:
           source: "./*"
           target: "/home/ubuntu/app"
 
-      # STEP 3: BUILD and RUN inside the fresh folder
+      # STEP 3: BUILD and RUN
       - name: Docker Build & Run
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -49,7 +52,7 @@ jobs:
               sudo usermod -aG docker ubuntu
             fi
 
-            # Build the image and launch the container
+            # Build image and launch container
             sudo docker build -t weather-app .
             sudo docker stop my-app-container || true
             sudo docker rm my-app-container || true

@@ -23,6 +23,8 @@ var summaries = new[]
     "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
 };
 
+app.UseDefaultFiles(); // Tells the app to look for index.html
+app.UseStaticFiles();  // Enables serving files from wwwroot
 app.MapGet("/weatherforecast", () =>
 {
     var forecast =  Enumerable.Range(1, 5).Select(index =>

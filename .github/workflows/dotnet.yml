@@ -11,7 +11,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Step 1: Copy ONLY the source code to EC2
+      # STEP 1: CLEAN the server BEFORE copying files
+      - name: Pre-deployment Cleanup
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            sudo rm -rf /home/ubuntu/app
+            mkdir -p /home/ubuntu/app
+
+      # STEP 2: COPY the source code to the now-empty folder
       - name: Copy source to EC2
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -21,7 +32,7 @@ jobs:
           source: "./*"
           target: "/home/ubuntu/app"
 
-      # Step 2: Clean, Build and Run the Docker Container
+      # STEP 3: BUILD and RUN inside the fresh folder
       - name: Docker Build & Run
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -29,24 +40,16 @@ jobs:
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
-            # 1. DELETE old files to fix NETSDK1152 conflict
-            sudo rm -rf /home/ubuntu/app
-            mkdir -p /home/ubuntu/app
-            
-            # Re-sync files (Move them back from the temp scp location if needed)
-            # Since scp copies to /home/ubuntu/app, we delete it BEFORE scp in a real scenario, 
-            # but for this script, we'll ensure the build folder is fresh.
-            
             cd /home/ubuntu/app
-
-            # 2. Install Docker if missing
+            
+            # Install Docker only if missing
             if ! command -v docker &> /dev/null; then
               sudo apt-get update
               sudo apt-get install -y docker.io
               sudo usermod -aG docker ubuntu
             fi
 
-            # 3. Build and Run
+            # Build the image and launch the container
             sudo docker build -t weather-app .
             sudo docker stop my-app-container || true
             sudo docker rm my-app-container || true

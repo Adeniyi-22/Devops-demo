@@ -1,51 +1,51 @@
-name: .NET CI/CD
+name: .NET Docker CI/CD
 
 on:
   push:
     branches: ["main"]
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
 
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
-
-    - name: Restore & Build
-      run: |
-        dotnet restore
-        dotnet build --configuration Release --no-restore
-
-    - name: Publish
-      run: dotnet publish -c Release -o ./publish
-
-    - name: Copy files to EC2
+    # Step 1: Copy ONLY the source code and Dockerfile to EC2
+    - name: Copy source to EC2
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ubuntu
         key: ${{ secrets.EC2_SSH_KEY }}
-        source: "publish/*"
+        # We send everything so the EC2 can build the Docker image
+        source: "./*"
         target: "/home/ubuntu/app"
-        strip_components: 1
 
-    - name: Restart app on EC2
+    # Step 2: Build and Run the Docker Container on the EC2
+    - name: Docker Build & Run
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.EC2_HOST }}
         username: ubuntu
         key: ${{ secrets.EC2_SSH_KEY }}
         script: |
-          # Stop any old version running
-          sudo pkill dotnet || true
-          
-          # Navigate and run using the local dotnet install
+          # 1. Install Docker if it's missing (First time only)
+          if ! command -v docker &> /dev/null; then
+            sudo apt-get update
+            sudo apt-get install -y docker.io
+            sudo usermod -aG docker ubuntu
+          fi
+
           cd /home/ubuntu/app
-          export DOTNET_ROOT=$HOME/.dotnet
-          export PATH=$PATH:$HOME/.dotnet
-          nohup dotnet DevOpsDemo.dll --urls "http://0.0.0.0:5000" > /dev/null 2>&1 &
+          
+          # 2. Build the Docker Image
+          sudo docker build -t weather-app .
+
+          # 3. Stop and remove the old container if it exists
+          sudo docker stop my-app-container || true
+          sudo docker rm my-app-container || true
+
+          # 4. Run the new container
+          # We map port 5000 (AWS) to 8080 (Internal Docker port)
+          sudo docker run -d --name my-app-container -p 5000:8080 weather-app
